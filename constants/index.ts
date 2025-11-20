@@ -1,5 +1,5 @@
-/*
-import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
+
+//import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
 import { z } from "zod";
 
 export const mappings = {
@@ -98,6 +98,7 @@ export const mappings = {
   "aws amplify": "amplify",
 };
 
+/*
 export const interviewer: CreateAssistantDTO = {
   name: "Interviewer",
   firstMessage:
@@ -188,6 +189,7 @@ export const feedbackSchema = z.object({
   areasForImprovement: z.array(z.string()),
   finalAssessment: z.string(),
 });
+*/
 
 export const interviewCovers = [
   "/adobe.png",
@@ -203,6 +205,7 @@ export const interviewCovers = [
   "/tiktok.png",
   "/yahoo.png",
 ];
+
 
 export const dummyInterviews: Interview[] = [
   {
@@ -228,4 +231,3 @@ export const dummyInterviews: Interview[] = [
     createdAt: "2024-03-14T15:30:00Z",
   },
 ];
-*/
