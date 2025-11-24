@@ -1,68 +1,91 @@
-import { success } from "zod";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
-import { getRandomInterviewCover } from "@/lib/utils";
-import { db } from "@/firebase/admin";
-import { NextResponse } from "next/server"; // ✅ Required
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      success: true,
-      data: "THANK YOU!",
-    },
-    { status: 200 }
-  );
-}
+import { db } from "@/firebase/admin";
+import { getRandomInterviewCover } from "@/lib/utils";
 
 export async function POST(request: Request) {
-  const { type, role, level, techstack, amount, userid } =
-    await request.json();
+  const { type, role, level, techstack, amount, userid } = await request.json();
 
   try {
-    const { text: questions } = await generateText({
+    // ------------------------
+    // Generate Questions
+    // ------------------------
+    const result = await generateText({
       model: google("gemini-2.0-flash-001"),
-      prompt: `Prepare questions for a job interview.
-        The job role is ${role}.
-        The job experience level is ${level}.
-        The tech stack used in the job is: ${techstack}.
-        The focus between behavioural and technical questions should lean towards: ${type}.
-        The amount of questions required is: ${amount}.
-        Please return only the questions, without any additional text.
-        The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-        Return the questions formatted like this:
-        ["Question 1", "Question 2", "Question 3"]
-    `,
+      prompt: `
+        Prepare questions for a job interview.
+        Job role: ${role}
+        Experience level: ${level}
+        Tech stack: ${techstack}
+        Focus on: ${type} (behavioural/technical)
+        Number of questions: ${amount}
+        
+        Return ONLY a valid JSON array of strings like:
+        ["Question 1", "Question 2"]
+        
+        No extra text. No explanations. No formatting except valid JSON.
+      `,
     });
 
+    let raw = result.text.trim();
+
+    // ------------------------
+    // Ensure valid JSON
+    // ------------------------
+    // If the model adds ```json ... ```
+    raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    // If output is wrapped in quotes, remove them
+    if (raw.startsWith('"') && raw.endsWith('"')) {
+      raw = raw.slice(1, -1);
+    }
+
+    let parsedQuestions;
+    try {
+      parsedQuestions = JSON.parse(raw);
+    } catch (parseError) {
+      console.error("JSON parsing failed. Raw output:", raw);
+      return Response.json(
+        { success: false, error: "Invalid JSON returned from AI model." },
+        { status: 500 }
+      );
+    }
+
+    // ------------------------
+    // Prepare interview object
+    // ------------------------
     const interview = {
-      role: role,
-      type: type,
-      level: level,
-      techstack: techstack.split(","),
-      questions: JSON.parse(questions),
+      role,
+      type,
+      level,
+      techstack: Array.isArray(techstack)
+        ? techstack
+        : techstack?.split(",").map((t: string) => t.trim()) ?? [],
+      questions: parsedQuestions,
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
       createdAt: new Date().toISOString(),
     };
 
-    await db.collection("interviews").add(interview);
+    const docRef = await db.collection("interviews").add(interview);
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
-        data: interview,
+        questions: parsedQuestions,
+        interviewId: docRef.id,
       },
       { status: 200 }
     );
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error("Error:", error);
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
-        message: "Failed to generate interviews.",
+        error: error.message ?? "Unknown server error",
       },
       { status: 500 }
     );

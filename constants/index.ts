@@ -1,5 +1,4 @@
-
-//import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
+import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
 import { z } from "zod";
 
 export const mappings = {
@@ -98,7 +97,6 @@ export const mappings = {
   "aws amplify": "amplify",
 };
 
-/*
 export const interviewer: CreateAssistantDTO = {
   name: "Interviewer",
   firstMessage:
@@ -159,6 +157,7 @@ End the conversation on a polite and positive note.
 
 export const feedbackSchema = z.object({
   totalScore: z.number(),
+  categoryScores: z.tuple([
     z.object({
       name: z.literal("Communication Skills"),
       score: z.number(),
@@ -189,7 +188,6 @@ export const feedbackSchema = z.object({
   areasForImprovement: z.array(z.string()),
   finalAssessment: z.string(),
 });
-*/
 
 export const interviewCovers = [
   "/adobe.png",
@@ -205,7 +203,6 @@ export const interviewCovers = [
   "/tiktok.png",
   "/yahoo.png",
 ];
-
 
 export const dummyInterviews: Interview[] = [
   {

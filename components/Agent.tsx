@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { vapi } from "@/lib/vapi.sdk";
 
-// Import Vapi types
+import { cn } from "@/lib/utils";
+import { vapi } from "@/lib/vapi.sdk";
+import { createFeedback } from "@/lib/actions/general.action";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -15,36 +15,57 @@ enum CallStatus {
   FINISHED = "FINISHED",
 }
 
-
 interface SavedMessage {
   role: "user" | "system" | "assistant";
   content: string;
 }
 
-const Agent = ({ userName, userId }: AgentProps) => {
+interface AgentProps {
+  userName: string;
+  userId: string;
+  interviewId?: string;
+  feedbackId?: string;
+  type: "generate" | "interview";
+  role?: string;
+  level?: string;
+  techstack?: string[] | string;
+  amount?: number;
+  questions?: string[];
+}
+
+const Agent = ({
+  userName,
+  userId,
+  interviewId,
+  feedbackId,
+  type,
+  role,
+  level,
+  techstack,
+  amount,
+  questions,
+}: AgentProps) => {
+
   const router = useRouter();
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lastMessage, setLastMessage] = useState("");
 
-  // Attach Vapi event handlers
+  // ---------------------- VAPI Event Handlers ----------------------
   useEffect(() => {
     const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
     const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
 
-    const onMessage = (message: any) => {
-  if (message.type === "transcript" && message.transcriptType === "final") {
-    setMessages((prev) => [
-      ...prev,
-      { role: message.role, content: message.transcript },
-    ]);
-  }
-};
-
+    const onMessage = (message: Message) => {
+      if (message.type === "transcript" && message.transcriptType === "final") {
+        setMessages((prev) => [...prev, { role: message.role, content: message.transcript }]);
+      }
+    };
 
     const onSpeechStart = () => setIsSpeaking(true);
     const onSpeechEnd = () => setIsSpeaking(false);
-    const onError = (err: Error) => console.log("Error", err);
+    const onError = (error: Error) => console.error("VAPI Error:", error);
 
     vapi.on("call-start", onCallStart);
     vapi.on("call-end", onCallEnd);
@@ -63,59 +84,71 @@ const Agent = ({ userName, userId }: AgentProps) => {
     };
   }, []);
 
+  // ---------------------- Handle Transcript & Feedback ----------------------
   useEffect(() => {
-    if (callStatus === CallStatus.FINISHED) router.push("/");
-  }, [callStatus]);
+    if (messages.length > 0) {
+      setLastMessage(messages[messages.length - 1].content);
+    }
 
-  // FIXED handleCall
+    const saveFeedback = async () => {
+      const { success, feedbackId: newId } = await createFeedback({
+        interviewId: interviewId!,
+        userId: userId!,
+        transcript: messages,
+        feedbackId,
+      });
+
+      if (success && newId) router.push(`/interview/${interviewId}/feedback`);
+      else router.push("/");
+    };
+
+    if (callStatus === CallStatus.FINISHED) {
+      if (type === "generate") router.push("/");
+      else saveFeedback();
+    }
+  }, [messages, callStatus]);
+
+  // ---------------------- Start Call ----------------------
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
 
-    const workflowId = process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID;
+    const workflowId = "71d90b97-6202-473c-a48c-6a0566d1baf3";
 
-    if (!workflowId) {
-      console.error("❌ Missing NEXT_PUBLIC_VAPI_WORKFLOW_ID");
-      setCallStatus(CallStatus.INACTIVE);
-      return;
+    const variableValues: any = {
+      username: userName,
+      userid: userId,
+      role: role || "",
+      type: type || "",
+      level: level || "",
+      techstack: Array.isArray(techstack) ? techstack.join(", ") : techstack || "",
+      amount: amount || 0,
+    };
+
+    // Add questions only when interview questions already exist
+    if (type !== "generate" && questions && questions.length > 0) {
+      variableValues.questions = questions.map((q) => `- ${q}`).join("\n");
     }
 
     try {
-      await vapi.start(
-        workflowId,
-        {
-          variableValues: {
-            userName,
-            userId,
-          },
-        }
-      );
-    } catch (err) {
-      console.error("Call start error:", err);
+      await vapi.start(workflowId, { variableValues });
+    } catch (error) {
+      console.error("VAPI start error:", error);
       setCallStatus(CallStatus.INACTIVE);
     }
   };
 
-  const handleDisconnect = async () => {
+  // ---------------------- End Call ----------------------
+  const handleDisconnect = () => {
     setCallStatus(CallStatus.FINISHED);
-    await vapi.stop();
+    vapi.stop();
   };
-
-  const latestMessage = messages[messages.length - 1]?.content;
-  const isCallInactive =
-    callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
 
   return (
     <>
       <div className="call-view">
         <div className="card-interviewer">
           <div className="avatar">
-            <Image
-              src="/ai-avatar.png"
-              alt="vapi"
-              width={65}
-              height={54}
-              className="object-cover"
-            />
+            <Image src="/ai-avatar.png" alt="profile-image" width={65} height={54} className="object-cover" />
             {isSpeaking && <span className="animate-speak" />}
           </div>
           <h3>AI Interviewer</h3>
@@ -123,13 +156,8 @@ const Agent = ({ userName, userId }: AgentProps) => {
 
         <div className="card-border">
           <div className="card-content">
-            <Image
-              src="/user-avatar.png"
-              alt="user avatar"
-              width={540}
-              height={540}
-              className="rounded-full object-cover size-[120px]"
-            />
+            <Image src="/user-avatar.png" alt="profile-image" width={120} height={120} className="rounded-full object-cover" />
+            <h3>{userName}</h3>
           </div>
         </div>
       </div>
@@ -137,34 +165,23 @@ const Agent = ({ userName, userId }: AgentProps) => {
       {messages.length > 0 && (
         <div className="transcript-border">
           <div className="transcript">
-            <p
-              key={latestMessage}
-              className={cn(
-                "transition-opacity duration-500 opacity-0",
-                "animate-fadeIn opacity-100"
-              )}
-            >
-              {latestMessage}
+            <p key={lastMessage} className={cn("animate-fadeIn")}>
+              {lastMessage}
             </p>
           </div>
         </div>
       )}
 
       <div className="w-full flex justify-center">
-        {callStatus !== CallStatus.ACTIVE ? (
+        {callStatus !== "ACTIVE" ? (
           <button className="relative btn-call" onClick={handleCall}>
-            <span
-              className={cn(
-                "absolute animate-ping rounded-full opacity-75",
-                callStatus !== CallStatus.CONNECTING && "hidden"
-              )}
-            />
-            <span>{isCallInactive ? "Call" : "..."}</span>
+            <span className={cn("absolute animate-ping rounded-full opacity-75", callStatus !== "CONNECTING" && "hidden")} />
+            <span className="relative">
+              {callStatus === "INACTIVE" || callStatus === "FINISHED" ? "Call" : ". . ."}
+            </span>
           </button>
         ) : (
-          <button className="btn-disconnect" onClick={handleDisconnect}>
-            End
-          </button>
+          <button className="btn-disconnect" onClick={handleDisconnect}>End</button>
         )}
       </div>
     </>
