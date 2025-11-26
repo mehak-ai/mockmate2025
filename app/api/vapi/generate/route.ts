@@ -1,6 +1,5 @@
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
-
 import { db } from "@/firebase/admin";
 import { getRandomInterviewCover } from "@/lib/utils";
 
@@ -9,9 +8,9 @@ export async function POST(request: Request) {
 
   try {
     // ------------------------
-    // Generate Questions
+    // Step 1: Generate Questions with Gemini
     // ------------------------
-    const result = await generateText({
+    const geminiResult = await generateText({
       model: google("gemini-2.0-flash-001"),
       prompt: `
         Prepare questions for a job interview.
@@ -20,40 +19,57 @@ export async function POST(request: Request) {
         Tech stack: ${techstack}
         Focus on: ${type} (behavioural/technical)
         Number of questions: ${amount}
-        
+
         Return ONLY a valid JSON array of strings like:
         ["Question 1", "Question 2"]
-        
+
         No extra text. No explanations. No formatting except valid JSON.
       `,
     });
 
-    let raw = result.text.trim();
+    let rawQuestions = geminiResult.text.trim();
 
     // ------------------------
-    // Ensure valid JSON
+    // Clean up JSON formatting if needed
     // ------------------------
-    // If the model adds ```json ... ```
-    raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    // If output is wrapped in quotes, remove them
-    if (raw.startsWith('"') && raw.endsWith('"')) {
-      raw = raw.slice(1, -1);
+    rawQuestions = rawQuestions.replace(/```json/g, "").replace(/```/g, "").trim();
+    if (rawQuestions.startsWith('"') && rawQuestions.endsWith('"')) {
+      rawQuestions = rawQuestions.slice(1, -1);
     }
 
-    let parsedQuestions;
+    let parsedQuestions: string[];
     try {
-      parsedQuestions = JSON.parse(raw);
+      parsedQuestions = JSON.parse(rawQuestions);
     } catch (parseError) {
-      console.error("JSON parsing failed. Raw output:", raw);
+      console.error("JSON parsing failed. Raw output:", rawQuestions);
       return Response.json(
-        { success: false, error: "Invalid JSON returned from AI model." },
+        { success: false, error: "Invalid JSON from Gemini" },
         { status: 500 }
       );
     }
 
     // ------------------------
-    // Prepare interview object
+    // Step 2: Extract variables using VAPI workflow
+    // ------------------------
+    const vapiResponse = await fetch(
+      `https://vapi.io/workflows/${process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID}/execute`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN}`,
+        },
+        body: JSON.stringify({
+          input: parsedQuestions, // array of questions from Gemini
+        }),
+      }
+    );
+
+    const vapiData = await vapiResponse.json();
+    const extractedVariables = vapiData.output ?? []; // adjust if your VAPI workflow returns nested structure
+
+    // ------------------------
+    // Step 3: Save interview in Firestore
     // ------------------------
     const interview = {
       role,
@@ -63,6 +79,7 @@ export async function POST(request: Request) {
         ? techstack
         : techstack?.split(",").map((t: string) => t.trim()) ?? [],
       questions: parsedQuestions,
+      variables: extractedVariables, // store VAPI-extracted info
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
@@ -71,10 +88,14 @@ export async function POST(request: Request) {
 
     const docRef = await db.collection("interviews").add(interview);
 
+    // ------------------------
+    // Step 4: Return response
+    // ------------------------
     return Response.json(
       {
         success: true,
         questions: parsedQuestions,
+        variables: extractedVariables,
         interviewId: docRef.id,
       },
       { status: 200 }

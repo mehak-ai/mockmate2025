@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 
 import { signIn, signUp } from "@/lib/actions/auth.action";
 import MyFormField from "./MyFormField";
+
 const authFormSchema = (type: FormType) => {
   return z.object({
     name: type === "sign-up" ? z.string().min(3) : z.string().optional(),
@@ -29,8 +30,8 @@ const authFormSchema = (type: FormType) => {
 
 const AuthForm = ({ type }: { type: FormType }) => {
   const router = useRouter();
-
   const formSchema = authFormSchema(type);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -42,20 +43,24 @@ const AuthForm = ({ type }: { type: FormType }) => {
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
+      // ----------------------------------------
+      // SIGN UP FLOW
+      // ----------------------------------------
       if (type === "sign-up") {
         const { name, email, password } = data;
 
+        // Create user with Firebase
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email,
           password
         );
 
+        // Save user in your DB (DO NOT send password)
         const result = await signUp({
           uid: userCredential.user.uid,
           name: name!,
           email,
-          password,
         });
 
         if (!result.success) {
@@ -64,30 +69,36 @@ const AuthForm = ({ type }: { type: FormType }) => {
         }
 
         toast.success("Account created successfully. Please sign in.");
-        router.push("/sign-in");
-      } else {
-        const { email, password } = data;
+        setTimeout(() => {
+          router.replace("/sign-in");
+        }, 1500);
 
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        const idToken = await userCredential.user.getIdToken();
-        if (!idToken) {
-          toast.error("Sign in Failed. Please try again.");
-          return;
-        }
-
-        await signIn({
-          email,
-          idToken,
-        });
-
-        toast.success("Signed in successfully.");
-        router.push("/");
+        return;
       }
+
+      // ----------------------------------------
+      // SIGN IN FLOW
+      // ----------------------------------------
+      const { email, password } = data;
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      const idToken = await userCredential.user.getIdToken();
+      if (!idToken) {
+        toast.error("Sign in failed. Please try again.");
+        return;
+      }
+
+      await signIn({
+        email,
+        idToken,
+      });
+
+      toast.success("Signed in successfully.");
+      router.push("/");
     } catch (error) {
       console.log(error);
       toast.error(`There was an error: ${error}`);
@@ -100,7 +111,6 @@ const AuthForm = ({ type }: { type: FormType }) => {
     <div className="card-border lg:min-w-[566px]">
       <div className="flex flex-col gap-6 card py-14 px-10">
         <div className="flex flex-row gap-2 justify-center">
-          
           <h2 className="text-primary-100">MockMate</h2>
         </div>
 

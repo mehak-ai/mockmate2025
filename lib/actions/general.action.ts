@@ -2,10 +2,15 @@
 
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
+import { z } from "zod";
 
 import { db } from "@/firebase/admin";
 import { feedbackSchema } from "@/constants";
+import { getCurrentUser } from "./auth.action";
 
+/* ============================================================
+   1. CREATE FEEDBACK
+============================================================ */
 export async function createFeedback(params: CreateFeedbackParams) {
   const { interviewId, userId, transcript, feedbackId } = params;
 
@@ -17,30 +22,31 @@ export async function createFeedback(params: CreateFeedbackParams) {
       )
       .join("");
 
-    const { object } = await generateObject({
-      model: google("gemini-2.0-flash-001", {
-        structuredOutputs: true,
-      }),
+    const response = await generateObject({
+      model: google("gemini-2.0-flash-001"),
       schema: feedbackSchema,
       prompt: `
-        You are an AI interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories. Be thorough and detailed in your analysis. Don't be lenient with the candidate. If there are mistakes or areas for improvement, point them out.
+        You are an AI interviewer analyzing a mock interview. Be STRICT.
+        
         Transcript:
         ${formattedTranscript}
 
-        Please score the candidate from 0 to 100 in the following areas. Do not add categories other than the ones provided:
-        - **Communication Skills**: Clarity, articulation, structured responses.
-        - **Technical Knowledge**: Understanding of key concepts for the role.
-        - **Problem-Solving**: Ability to analyze problems and propose solutions.
-        - **Cultural & Role Fit**: Alignment with company values and job role.
-        - **Confidence & Clarity**: Confidence in responses, engagement, and clarity.
-        `,
+        Score the candidate 0–100 for:
+        - Communication Skills
+        - Technical Knowledge
+        - Problem-Solving
+        - Cultural & Role Fit
+        - Confidence & Clarity
+      `,
       system:
-        "You are a professional interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories",
+        "You are a professional interviewer analyzing a mock interview. Provide structured, strict scoring.",
     });
 
+    const object = response.object;
+
     const feedback = {
-      interviewId: interviewId,
-      userId: userId,
+      interviewId,
+      userId,
       totalScore: object.totalScore,
       categoryScores: object.categoryScores,
       strengths: object.strengths,
@@ -49,13 +55,10 @@ export async function createFeedback(params: CreateFeedbackParams) {
       createdAt: new Date().toISOString(),
     };
 
-    let feedbackRef;
-
-    if (feedbackId) {
-      feedbackRef = db.collection("feedback").doc(feedbackId);
-    } else {
-      feedbackRef = db.collection("feedback").doc();
-    }
+    const feedbackRef =
+      feedbackId !== undefined
+        ? db.collection("feedback").doc(feedbackId)
+        : db.collection("feedback").doc();
 
     await feedbackRef.set(feedback);
 
@@ -66,12 +69,17 @@ export async function createFeedback(params: CreateFeedbackParams) {
   }
 }
 
+/* ============================================================
+   2. GET INTERVIEW BY ID
+============================================================ */
 export async function getInterviewById(id: string): Promise<Interview | null> {
   const interview = await db.collection("interviews").doc(id).get();
-
   return interview.data() as Interview | null;
 }
 
+/* ============================================================
+   3. GET FEEDBACK BY INTERVIEW ID
+============================================================ */
 export async function getFeedbackByInterviewId(
   params: GetFeedbackByInterviewIdParams
 ): Promise<Feedback | null> {
@@ -90,6 +98,9 @@ export async function getFeedbackByInterviewId(
   return { id: feedbackDoc.id, ...feedbackDoc.data() } as Feedback;
 }
 
+/* ============================================================
+   4. GET LATEST INTERVIEWS
+============================================================ */
 export async function getLatestInterviews(
   params: GetLatestInterviewsParams
 ): Promise<Interview[] | null> {
@@ -102,32 +113,95 @@ export async function getLatestInterviews(
     .limit(limit)
     .get();
 
-  const interviews = snapshot.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as any),
-    }))
-    .filter((interview) => interview.userId !== userId);
-
-  return interviews as Interview[];
+  return snapshot.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
+    .filter((i) => i.userId !== userId) as Interview[];
 }
 
-
+/* ============================================================
+   5. GET INTERVIEWS BY USER ID
+============================================================ */
 export async function getInterviewsByUserId(
   userId: string
 ): Promise<Interview[] | null> {
-  
-  // (FIX APPLIED HERE)
   if (!userId) return [];
 
-  const interviews = await db
+  const snapshot = await db
     .collection("interviews")
     .where("userId", "==", userId)
     .orderBy("createdAt", "desc")
     .get();
 
-  return interviews.docs.map((doc) => ({
+  return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Interview[];
+}
+
+/* ============================================================
+   6. SAVE INTERVIEW (GEMINI + VAPI)
+============================================================ */
+export async function saveInterviewToFirestore(interview: any) {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, message: "Not authenticated" };
+
+  const interviewId = interview.id || crypto.randomUUID();
+
+  await db.collection("interviews").doc(interviewId).set({
+    id: interviewId,
+    userId: user.id,
+
+    role: interview.role ?? "Unknown",
+    level: interview.level ?? "Unknown",
+    coverImage: interview.coverImage ?? "/covers/default.png",
+    techstack: interview.techstack ?? [],
+    type: interview.type ?? "generate",
+    questions: interview.questions ?? [],
+
+    messages: interview.messages ?? [],
+
+    finalized: true,
+    createdAt: new Date().toISOString(),
+  });
+
+  return { success: true, interviewId };
+}
+
+/* ============================================================
+   7. GENERATE INTERVIEW DETAILS (FIXED WITH ZOD)
+============================================================ */
+export async function generateInterviewDetails(params: any) {
+  const { userId, role, level, techstack, amount } = params;
+
+  const InterviewSchema = z.object({
+    id: z.string(),
+    coverImage: z.string(),
+    role: z.string(),
+    level: z.string(),
+    type: z.string(),
+    techstack: z.array(z.string()),
+    questions: z.array(z.string()),
+  });
+
+  const response = await generateObject({
+    model: google("gemini-2.0-flash-001"),
+    schema: InterviewSchema,
+    prompt: `
+      Generate an interview with EXACTLY ${amount} questions.
+      Role: ${role}
+      Level: ${level}
+      Techstack: ${techstack}
+    `,
+  });
+
+  const object = response.object;
+
+  await db.collection("interviews").doc(object.id).set({
+    ...object,
+    userId,
+    finalized: true,
+    createdAt: new Date().toISOString(),
+  });
+
+  return object;
 }

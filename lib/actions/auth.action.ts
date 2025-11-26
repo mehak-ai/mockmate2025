@@ -29,32 +29,25 @@ export async function setSessionCookie(idToken: string) {
 // SIGN UP
 // ------------------------------
 export async function signUp(params: SignUpParams) {
-  const { name, email, password } = params;
+  const { uid, name, email } = params;
 
   try {
-    // 1️⃣ Check if user already exists
-    try {
-      const existingUser = await auth.getUserByEmail(email);
-      if (existingUser) {
-        return {
-          success: false,
-          message: "This email is already in use",
-        };
-      }
-    } catch (err: any) {
-      if (err.code !== "auth/user-not-found") throw err;
+    // 1️⃣ Check Firestore for existing email
+    const emailCheck = await db
+      .collection("users")
+      .where("email", "==", email)
+      .get();
+
+    if (!emailCheck.empty) {
+      return {
+        success: false,
+        message: "This email is already in use",
+      };
     }
 
-    // 2️⃣ Create Firebase Auth User
-    const user = await auth.createUser({
-      email,
-      password,
-      displayName: name,
-    });
-
-    // 3️⃣ Create Firestore User Document
-    await db.collection("users").doc(user.uid).set({
-      uid: user.uid,
+    // 2️⃣ Create Firestore User Document
+    await db.collection("users").doc(uid).set({
+      uid,
       name,
       email,
       role: "user",
@@ -65,7 +58,7 @@ export async function signUp(params: SignUpParams) {
       success: true,
       message: "Account created successfully. Please sign in.",
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating user:", error);
     return {
       success: false,
@@ -73,6 +66,8 @@ export async function signUp(params: SignUpParams) {
     };
   }
 }
+
+
 
 // ------------------------------
 // SIGN IN
