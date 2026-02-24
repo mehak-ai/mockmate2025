@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
-import { createFeedback } from "@/lib/actions/general.action";
+import { createFeedback, saveInterviewTranscript } from "@/lib/actions/general.action";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -45,27 +45,51 @@ const Agent = ({
   amount,
   questions,
 }: AgentProps) => {
-
   const router = useRouter();
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState("");
+  const [userInput, setUserInput] = useState("");
 
   // ---------------------- VAPI Event Handlers ----------------------
   useEffect(() => {
     const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
     const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
 
-    const onMessage = (message: Message) => {
+    const onMessage = (message: any) => {
+      // Voice transcript
       if (message.type === "transcript" && message.transcriptType === "final") {
-        setMessages((prev) => [...prev, { role: message.role, content: message.transcript }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: message.role, content: message.transcript },
+        ]);
+      }
+
+      // Assistant responses
+      if (message.type === "response" && message.message?.text) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: message.message.text },
+        ]);
       }
     };
 
     const onSpeechStart = () => setIsSpeaking(true);
     const onSpeechEnd = () => setIsSpeaking(false);
-    const onError = (error: Error) => console.error("VAPI Error:", error);
+
+    // Robust error logging
+    const onError = (error: any) => {
+      if (!error) {
+        console.error("VAPI Error: unknown error (empty object)");
+      } else if (error instanceof Error) {
+        console.error("VAPI Error:", error.message, error.stack);
+      } else if (typeof error === "object") {
+        console.error("VAPI Error (object):", JSON.stringify(error));
+      } else {
+        console.error("VAPI Error:", error);
+      }
+    };
 
     vapi.on("call-start", onCallStart);
     vapi.on("call-end", onCallEnd);
@@ -91,6 +115,15 @@ const Agent = ({
     }
 
     const saveFeedback = async () => {
+      // Save transcript for later viewing
+      if (interviewId) {
+        await saveInterviewTranscript({
+          interviewId: interviewId!,
+          userId: userId!,
+          transcript: messages,
+        });
+      }
+
       const { success, feedbackId: newId } = await createFeedback({
         interviewId: interviewId!,
         userId: userId!,
@@ -102,6 +135,7 @@ const Agent = ({
       else router.push("/");
     };
 
+
     if (callStatus === CallStatus.FINISHED) {
       if (type === "generate") router.push("/");
       else saveFeedback();
@@ -112,7 +146,7 @@ const Agent = ({
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
 
-    const workflowId = "71d90b97-6202-473c-a48c-6a0566d1baf3";
+    const workflowId = "fffd3b52-1d62-40ca-99b7-a32d0c89b2e2";
 
     const variableValues: any = {
       username: userName,
@@ -124,7 +158,6 @@ const Agent = ({
       amount: amount || 0,
     };
 
-    // Add questions only when interview questions already exist
     if (type !== "generate" && questions && questions.length > 0) {
       variableValues.questions = questions.map((q) => `- ${q}`).join("\n");
     }
@@ -143,12 +176,47 @@ const Agent = ({
     vapi.stop();
   };
 
+  // ---------------------- Send Text Input to VAPI ----------------------
+  const sendText = () => {
+    if (!userInput.trim()) return;
+
+    // Show user input in transcript
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: userInput },
+    ]);
+
+    // Send to VAPI so assistant can respond
+    vapi.send({
+      type: "add-message",
+      message: {
+        role: "user",
+        content: userInput,
+      },
+    });
+
+    setUserInput("");
+  };
+
+  const handleEnter = (e: any) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendText();
+    }
+  };
+
   return (
     <>
       <div className="call-view">
         <div className="card-interviewer">
           <div className="avatar">
-            <Image src="/ai-avatar.png" alt="profile-image" width={65} height={54} className="object-cover" />
+            <Image
+              src="/ai-avatar.png"
+              alt="profile-image"
+              width={65}
+              height={54}
+              className="object-cover"
+            />
             {isSpeaking && <span className="animate-speak" />}
           </div>
           <h3>AI Interviewer</h3>
@@ -156,7 +224,13 @@ const Agent = ({
 
         <div className="card-border">
           <div className="card-content">
-            <Image src="/user-avatar.png" alt="profile-image" width={120} height={120} className="rounded-full object-cover" />
+            <Image
+              src="/user-avatar.png"
+              alt="profile-image"
+              width={120}
+              height={120}
+              className="rounded-full object-cover"
+            />
             <h3>{userName}</h3>
           </div>
         </div>
@@ -172,16 +246,44 @@ const Agent = ({
         </div>
       )}
 
-      <div className="w-full flex justify-center">
-        {callStatus !== "ACTIVE" ? (
+      {/* Text input for user */}
+      {callStatus === CallStatus.ACTIVE && (
+        <div className="w-full flex flex-col items-center mt-4 gap-3">
+          <input
+            className="w-[80%] p-3 border rounded-xl text-black"
+            placeholder="Type your response and press Enter..."
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            onKeyDown={handleEnter}
+          />
+          <button
+            onClick={sendText}
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg"
+          >
+            Send
+          </button>
+        </div>
+      )}
+
+      <div className="w-full flex justify-center mt-4">
+        {callStatus !== CallStatus.ACTIVE ? (
           <button className="relative btn-call" onClick={handleCall}>
-            <span className={cn("absolute animate-ping rounded-full opacity-75", callStatus !== "CONNECTING" && "hidden")} />
+            <span
+              className={cn(
+                "absolute animate-ping rounded-full opacity-75",
+                callStatus !== "CONNECTING" && "hidden"
+              )}
+            />
             <span className="relative">
-              {callStatus === "INACTIVE" || callStatus === "FINISHED" ? "Call" : ". . ."}
+              {callStatus === "INACTIVE" || callStatus === "FINISHED"
+                ? "Call"
+                : ". . ."}
             </span>
           </button>
         ) : (
-          <button className="btn-disconnect" onClick={handleDisconnect}>End</button>
+          <button className="btn-disconnect" onClick={handleDisconnect}>
+            End
+          </button>
         )}
       </div>
     </>

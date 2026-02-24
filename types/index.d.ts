@@ -97,3 +97,21 @@ interface InterviewFormProps {
 interface TechIconProps {
   techStack: string[];
 }
+
+interface ScheduledInterview {
+  id: string;
+  userId: string;
+  interviewId?: string;
+  title: string;
+  notes?: string;
+  scheduledAt: string;
+  status: "upcoming" | "completed" | "cancelled";
+  createdAt: string;
+}
+
+interface ScheduleInterviewParams {
+  interviewId?: string;
+  title: string;
+  notes?: string;
+  scheduledAt: string;
+}

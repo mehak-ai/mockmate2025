@@ -322,6 +322,7 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -332,3 +333,323 @@
     transform: translateY(0);
   }
 }
+
+/* ============================================================
+   NAV
+============================================================ */
+.root-nav {
+  @apply flex items-center justify-between w-full;
+}
+.nav-links {
+  @apply flex items-center gap-6;
+}
+.nav-link {
+  @apply text-light-100 hover:text-primary-100 transition-colors duration-200 text-sm font-medium;
+}
+.nav-signout {
+  @apply text-destructive-100 hover:text-destructive-200 cursor-pointer bg-transparent border-none text-sm font-medium;
+}
+
+/* ============================================================
+   FEEDBACK PAGE
+============================================================ */
+.feedback-header {
+  @apply flex items-start justify-between gap-4 flex-wrap;
+}
+.feedback-header-left {}
+.feedback-title {
+  @apply text-4xl font-bold text-white mb-1;
+}
+.feedback-subtitle {
+  @apply text-light-400 text-base capitalize;
+}
+.feedback-score-circle {
+  @apply flex flex-col items-center justify-center w-24 h-24 rounded-full border-4 border-primary-200 bg-dark-200 flex-shrink-0;
+}
+.feedback-score-number {
+  @apply text-3xl font-bold text-primary-100;
+}
+.feedback-score-label {
+  @apply text-xs text-light-400;
+}
+.feedback-date {
+  @apply text-light-400 text-sm;
+}
+.feedback-card {
+  @apply dark-gradient rounded-2xl p-6 border border-white/10;
+}
+.feedback-section-title {
+  @apply text-xl font-semibold text-white mb-4;
+}
+.feedback-assessment-text {
+  @apply text-light-100 leading-relaxed;
+}
+.feedback-scores-grid {
+  @apply flex flex-col gap-5;
+}
+.feedback-score-item {}
+.feedback-score-item-header {
+  @apply flex items-center justify-between mb-1;
+}
+.feedback-score-item-name {
+  @apply text-light-100 font-medium text-sm;
+}
+.feedback-score-item-value {
+  @apply font-bold text-sm;
+}
+.feedback-progress-bar {
+  @apply h-2 rounded-full bg-dark-300 w-full overflow-hidden mb-1;
+}
+.feedback-progress-fill {
+  @apply h-full rounded-full transition-all duration-500;
+}
+.feedback-score-comment {
+  @apply text-xs text-light-400 mt-1;
+}
+.feedback-two-col {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+.feedback-list {
+  @apply flex flex-col gap-2 list-none;
+}
+.feedback-list-item {
+  @apply flex items-start gap-2 text-sm leading-relaxed;
+}
+.feedback-list-dot {
+  @apply text-xs mt-0.5 flex-shrink-0;
+}
+.strength-dot { @apply text-success-100; }
+.improvement-dot { @apply text-primary-200; }
+.strength-item { @apply text-light-100; }
+.improvement-item { @apply text-light-100; }
+
+/* ============================================================
+   SCORE COLORS (shared)
+============================================================ */
+.score-high { @apply text-success-100; }
+.score-mid { @apply text-yellow-400; }
+.score-low { @apply text-destructive-100; }
+.fill-high { @apply bg-success-100; }
+.fill-mid { @apply bg-yellow-400; }
+.fill-low { @apply bg-destructive-100; }
+
+/* ============================================================
+   SCHEDULE PAGE
+============================================================ */
+.schedule-page {
+  @apply flex flex-col gap-8;
+}
+.schedule-header {
+  @apply flex items-start justify-between;
+}
+.schedule-title {
+  @apply text-3xl font-bold text-white;
+}
+.schedule-subtitle {
+  @apply text-light-400 mt-1;
+}
+.schedule-grid {
+  @apply grid grid-cols-1 lg:grid-cols-2 gap-6;
+}
+.schedule-form-card {
+  @apply dark-gradient border border-white/10 rounded-2xl p-6 flex flex-col gap-4;
+}
+.schedule-section-title {
+  @apply text-xl font-semibold text-white mb-2;
+}
+.schedule-form {
+  @apply flex flex-col gap-4;
+}
+.schedule-field {
+  @apply flex flex-col gap-1.5;
+}
+.schedule-label {
+  @apply text-light-100 text-sm font-medium;
+}
+.schedule-input {
+  @apply bg-dark-300 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-light-400 focus:outline-none focus:border-primary-200 transition-colors text-sm;
+}
+.schedule-input-date {
+  @apply text-white [color-scheme:dark];
+}
+.schedule-select {
+  @apply cursor-pointer;
+}
+.schedule-textarea {
+  @apply resize-none;
+}
+.schedule-submit-btn {
+  @apply bg-primary-200 text-dark-100 font-bold rounded-full px-6 py-3 hover:bg-primary-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2;
+}
+.schedule-success {
+  @apply bg-success-100/10 border border-success-100/30 text-success-100 rounded-xl px-4 py-3 text-sm font-medium;
+}
+.schedule-list-area {
+  @apply flex flex-col gap-6;
+}
+.schedule-card {
+  @apply dark-gradient border border-white/10 rounded-2xl p-6;
+}
+.schedule-empty {
+  @apply text-light-400 text-sm;
+}
+.schedule-items {
+  @apply flex flex-col gap-3;
+}
+.schedule-item {
+  @apply rounded-xl p-4 flex flex-col gap-2;
+}
+.upcoming-item {
+  @apply bg-primary-200/10 border border-primary-200/20;
+}
+.past-item {
+  @apply bg-white/5 border border-white/10;
+}
+.schedule-item-header {
+  @apply flex items-center justify-between;
+}
+.schedule-item-title {
+  @apply text-white font-semibold text-base;
+}
+.schedule-badge {
+  @apply text-xs font-bold px-2 py-0.5 rounded-full;
+}
+.upcoming-badge {
+  @apply bg-primary-200/20 text-primary-100;
+}
+.past-badge {
+  @apply bg-white/10 text-light-400;
+}
+.schedule-item-date {
+  @apply text-light-400 text-sm;
+}
+.schedule-item-notes {
+  @apply text-light-100 text-sm;
+}
+.schedule-start-link {
+  @apply text-primary-100 text-sm font-semibold hover:underline w-fit;
+}
+.schedule-delete-btn {
+  @apply text-destructive-100 text-xs font-medium hover:text-destructive-200 cursor-pointer bg-transparent border-none w-fit;
+}
+
+/* ============================================================
+   INTERVIEW HISTORY PAGE
+============================================================ */
+.interviews-history-page {
+  @apply flex flex-col gap-6;
+}
+.history-header {
+  @apply flex items-baseline justify-between;
+}
+.history-title {
+  @apply text-3xl font-bold text-white;
+}
+.history-subtitle {
+  @apply text-light-400 text-sm;
+}
+.history-empty {
+  @apply flex flex-col items-center justify-center py-20 gap-4 text-light-400;
+}
+.history-empty-btn {
+  @apply mt-4;
+}
+.history-list {
+  @apply flex flex-col gap-6;
+}
+.history-card {
+  @apply dark-gradient border border-white/10 rounded-2xl p-6 flex flex-col gap-5;
+}
+.history-card-header {
+  @apply flex items-start justify-between gap-4;
+}
+.history-card-info {
+  @apply flex items-center gap-4;
+}
+.history-card-title {
+  @apply text-xl font-bold text-white;
+}
+.history-card-meta {
+  @apply text-sm text-light-400;
+}
+.history-score-badge {
+  @apply flex items-baseline gap-1 flex-shrink-0 bg-primary-200/10 border border-primary-200/30 rounded-xl px-4 py-2;
+}
+.history-score-number {
+  @apply text-2xl font-bold text-primary-100;
+}
+.history-score-label {
+  @apply text-sm text-light-400;
+}
+.history-tags {
+  @apply flex flex-wrap gap-2;
+}
+.history-tag {
+  @apply text-xs bg-dark-300 border border-white/10 text-light-100 rounded-full px-3 py-1;
+}
+.history-questions {
+  @apply bg-dark-300/50 rounded-xl p-4;
+}
+.history-questions-title {
+  @apply text-sm font-semibold text-white mb-3;
+}
+.history-question-list {
+  @apply flex flex-col gap-2 list-none;
+}
+.history-question-item {
+  @apply flex items-start gap-2 text-sm text-light-100;
+}
+.history-q-number {
+  @apply text-primary-200 font-bold flex-shrink-0;
+}
+.history-feedback-summary {
+  @apply flex flex-col gap-4;
+}
+.history-feedback-cols {
+  @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+}
+.history-feedback-col {
+  @apply bg-dark-300/50 rounded-xl p-4;
+}
+.history-feedback-col-title {
+  @apply text-sm font-semibold mb-2;
+}
+.strength-title { @apply text-success-100; }
+.improvement-title { @apply text-primary-200; }
+.history-feedback-point {
+  @apply text-xs text-light-100 leading-relaxed py-0.5 list-none;
+}
+.strength-point::before { content: "✓ "; color: #49de50; }
+.improvement-point::before { content: "→ "; color: #cac5fe; }
+.history-score-bars {
+  @apply flex flex-col gap-3;
+}
+.history-score-bar-item {}
+.history-score-bar-header {
+  @apply flex items-center justify-between mb-1;
+}
+.history-score-bar-name {
+  @apply text-xs text-light-400;
+}
+.history-score-bar-value {
+  @apply text-xs font-bold;
+}
+.history-progress-bar {
+  @apply h-1.5 rounded-full bg-dark-300 overflow-hidden;
+}
+.history-progress-fill {
+  @apply h-full rounded-full transition-all duration-500;
+}
+.history-actions {
+  @apply flex flex-wrap gap-3 pt-2 border-t border-white/10;
+}
+.history-btn {
+  @apply px-5 py-2.5 rounded-full text-sm font-bold transition-colors cursor-pointer;
+}
+.history-btn-primary {
+  @apply bg-primary-200 text-dark-100 hover:bg-primary-100;
+}
+.history-btn-secondary {
+  @apply bg-dark-200 text-primary-200 border border-primary-200/30 hover:bg-dark-300;
+}
+

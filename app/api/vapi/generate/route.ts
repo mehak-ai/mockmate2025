@@ -8,68 +8,42 @@ export async function POST(request: Request) {
 
   try {
     // ------------------------
-    // Step 1: Generate Questions with Gemini
+    // STEP 1: Generate Questions with Gemini
     // ------------------------
     const geminiResult = await generateText({
       model: google("gemini-2.0-flash-001"),
       prompt: `
-        Prepare questions for a job interview.
+        Prepare interview questions.
+
         Job role: ${role}
         Experience level: ${level}
         Tech stack: ${techstack}
-        Focus on: ${type} (behavioural/technical)
+        Question Type: ${type}
         Number of questions: ${amount}
 
-        Return ONLY a valid JSON array of strings like:
-        ["Question 1", "Question 2"]
-
-        No extra text. No explanations. No formatting except valid JSON.
+        ONLY return valid JSON:
+        ["Question 1", "Question 2", ...]
       `,
     });
 
     let rawQuestions = geminiResult.text.trim();
 
-    // ------------------------
-    // Clean up JSON formatting if needed
-    // ------------------------
+    // Clean up JSON fences
     rawQuestions = rawQuestions.replace(/```json/g, "").replace(/```/g, "").trim();
-    if (rawQuestions.startsWith('"') && rawQuestions.endsWith('"')) {
-      rawQuestions = rawQuestions.slice(1, -1);
-    }
 
-    let parsedQuestions: string[];
+    let parsedQuestions: string[] = [];
     try {
       parsedQuestions = JSON.parse(rawQuestions);
-    } catch (parseError) {
-      console.error("JSON parsing failed. Raw output:", rawQuestions);
+    } catch (err) {
+      console.error("Failed to parse JSON:", rawQuestions);
       return Response.json(
-        { success: false, error: "Invalid JSON from Gemini" },
+        { success: false, error: "Gemini returned invalid JSON." },
         { status: 500 }
       );
     }
 
     // ------------------------
-    // Step 2: Extract variables using VAPI workflow
-    // ------------------------
-    const vapiResponse = await fetch(
-      `https://vapi.io/workflows/${process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID}/execute`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN}`,
-        },
-        body: JSON.stringify({
-          input: parsedQuestions, // array of questions from Gemini
-        }),
-      }
-    );
-
-    const vapiData = await vapiResponse.json();
-    const extractedVariables = vapiData.output ?? []; // adjust if your VAPI workflow returns nested structure
-
-    // ------------------------
-    // Step 3: Save interview in Firestore
+    // STEP 2: Directly Prepare Interview Object
     // ------------------------
     const interview = {
       role,
@@ -77,32 +51,36 @@ export async function POST(request: Request) {
       level,
       techstack: Array.isArray(techstack)
         ? techstack
-        : techstack?.split(",").map((t: string) => t.trim()) ?? [],
+        : techstack
+        ? techstack.split(",").map((t: string) => t.trim())
+        : [],
       questions: parsedQuestions,
-      variables: extractedVariables, // store VAPI-extracted info
+      variables: { role, type, level, techstack, amount }, // Store variables directly
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
       createdAt: new Date().toISOString(),
     };
 
+    // ------------------------
+    // STEP 3: Save in Firestore
+    // ------------------------
     const docRef = await db.collection("interviews").add(interview);
 
     // ------------------------
-    // Step 4: Return response
+    // STEP 4: Send Response
     // ------------------------
     return Response.json(
       {
         success: true,
-        questions: parsedQuestions,
-        variables: extractedVariables,
         interviewId: docRef.id,
+        questions: parsedQuestions,
+        variables: interview.variables,
       },
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("Error:", error);
-
+    console.error("Server Error:", error);
     return Response.json(
       {
         success: false,

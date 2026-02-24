@@ -205,3 +205,102 @@ export async function generateInterviewDetails(params: any) {
 
   return object;
 }
+
+/* ============================================================
+   8. SCHEDULE INTERVIEW
+============================================================ */
+export async function scheduleInterview(params: ScheduleInterviewParams) {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, message: "Not authenticated" };
+
+  const { interviewId, scheduledAt, title, notes } = params;
+
+  const scheduleRef = db.collection("scheduledInterviews").doc();
+  await scheduleRef.set({
+    id: scheduleRef.id,
+    userId: user.id,
+    interviewId: interviewId || null,
+    title,
+    notes: notes || "",
+    scheduledAt,
+    status: "upcoming",
+    createdAt: new Date().toISOString(),
+  });
+
+  return { success: true, scheduleId: scheduleRef.id };
+}
+
+/* ============================================================
+   9. GET SCHEDULED INTERVIEWS
+============================================================ */
+export async function getScheduledInterviews(userId: string): Promise<ScheduledInterview[]> {
+  if (!userId) return [];
+  // Note: No orderBy to avoid requiring a Firestore composite index.
+  // We sort client-side instead.
+  const snapshot = await db
+    .collection("scheduledInterviews")
+    .where("userId", "==", userId)
+    .get();
+
+  const docs = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as ScheduledInterview[];
+
+  // Sort ascending by scheduledAt in JS (no composite index needed)
+  return docs.sort((a, b) =>
+    a.scheduledAt < b.scheduledAt ? -1 : a.scheduledAt > b.scheduledAt ? 1 : 0
+  );
+}
+
+/* ============================================================
+   10. DELETE SCHEDULED INTERVIEW
+============================================================ */
+export async function deleteScheduledInterview(scheduleId: string) {
+  try {
+    await db.collection("scheduledInterviews").doc(scheduleId).delete();
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting scheduled interview:", error);
+    return { success: false };
+  }
+}
+
+/* ============================================================
+   11. SAVE INTERVIEW TRANSCRIPT
+============================================================ */
+export async function saveInterviewTranscript(params: {
+  interviewId: string;
+  userId: string;
+  transcript: { role: string; content: string }[];
+}) {
+  const { interviewId, userId, transcript } = params;
+  try {
+    await db.collection("transcripts").doc(interviewId).set({
+      interviewId,
+      userId,
+      transcript,
+      savedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving transcript:", error);
+    return { success: false };
+  }
+}
+
+/* ============================================================
+   12. GET INTERVIEW TRANSCRIPT
+============================================================ */
+export async function getInterviewTranscript(interviewId: string): Promise<{
+  transcript: { role: string; content: string }[];
+} | null> {
+  try {
+    const doc = await db.collection("transcripts").doc(interviewId).get();
+    if (!doc.exists) return null;
+    return doc.data() as { transcript: { role: string; content: string }[] };
+  } catch (error) {
+    console.error("Error getting transcript:", error);
+    return null;
+  }
+}
